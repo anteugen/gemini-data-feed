@@ -74,9 +74,14 @@ func main() {
 					latestAsk = event
 				}
 			}
-
-			if latestBid.Price != "" && latestAsk.Price != "" {
-				log.Printf("%s %s - %s %s", latestBid.Price, latestBid.Remaining, latestAsk.Price, latestAsk.Remaining)
+	
+			if (latestBid != lastLoggedBid) ||
+			   (latestAsk != lastLoggedAsk) {
+				fmt.Printf("%s %s - %s %s\n",
+					latestBid.Price, latestBid.Remaining, latestAsk.Price, latestAsk.Remaining)
+	
+				lastLoggedBid = latestBid
+				lastLoggedAsk = latestAsk
 			}
 		}
 	}()
