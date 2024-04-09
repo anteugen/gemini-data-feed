@@ -1,31 +1,31 @@
 package main
 
 import (
-	"log"
 	"encoding/json"
+	"github.com/gorilla/websocket"
+	"log"
 	"os"
-    "os/signal"
-    "syscall"
-    "github.com/gorilla/websocket"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
 type Event struct {
-    Delta     string `json:"delta"`
-    Price     string `json:"price"`
-    Reason    string `json:"reason"`
-    Remaining string `json:"remaining"`
-    Side      string `json:"side"`
-    Type      string `json:"type"`
+	Delta     string `json:"delta"`
+	Price     string `json:"price"`
+	Reason    string `json:"reason"`
+	Remaining string `json:"remaining"`
+	Side      string `json:"side"`
+	Type      string `json:"type"`
 }
 
 type Message struct {
-    EventID       int64   `json:"eventId"`
-    Events        []Event `json:"events"`
-    SocketSequence int    `json:"socket_sequence"`
-    Timestamp     int64   `json:"timestamp"`
-    TimestampMs   int64   `json:"timestampms"`
-    Type          string  `json:"type"`
+	EventID        int64   `json:"eventId"`
+	Events         []Event `json:"events"`
+	SocketSequence int     `json:"socket_sequence"`
+	Timestamp      int64   `json:"timestamp"`
+	TimestampMs    int64   `json:"timestampms"`
+	Type           string  `json:"type"`
 }
 
 func main() {
@@ -39,6 +39,7 @@ func main() {
 	conn, _, err := dialer.Dial(url, nil)
 	if err != nil {
 		log.Println("error:", err)
+		return
 	}
 	defer conn.Close()
 
@@ -49,23 +50,33 @@ func main() {
 	go func() {
 		defer close(done)
 
+		var latestBid, latestAsk Event
+
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
-                log.Println("read:", err)
-                return
-            }
+				log.Println("read:", err)
+				return
+			}
 
 			var parsedMessage Message
 
 			err = json.Unmarshal(message, &parsedMessage)
-        	if err != nil {
-            	log.Println("Error parsing JSON message:", err)
-            	continue
-        	}
-		
+			if err != nil {
+				log.Println("Error parsing JSON message:", err)
+				continue
+			}
+
 			for _, event := range parsedMessage.Events {
-				log.Printf("%s %s", event.Price, event.Remaining)
+				if event.Side == "bid" {
+					latestBid = event
+				} else if event.Side == "ask" {
+					latestAsk = event
+				}
+			}
+
+			if latestBid.Price != "" && latestAsk.Price != "" {
+				log.Printf("%s %s - %s %s", latestBid.Price, latestBid.Remaining, latestAsk.Price, latestAsk.Remaining)
 			}
 		}
 	}()
@@ -77,16 +88,16 @@ func main() {
 		case <-interrupt:
 			log.Println("Interrupt, shutting down")
 			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-            if err != nil {
-                log.Println("write close:", err)
-                return
-            }
+			if err != nil {
+				log.Println("write close:", err)
+				return
+			}
 			select {
-            	case <-done:
-            	case <-time.After(1 * time.Second):
-					log.Println("Shutdown timeout, exiting")
-            }
-            return
+			case <-done:
+			case <-time.After(1 * time.Second):
+				log.Println("Shutdown timeout, exiting")
+			}
+			return
 		}
 	}
 }
