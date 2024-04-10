@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"fmt"
 )
 
 type Event struct {
@@ -51,6 +52,7 @@ func main() {
 		defer close(done)
 
 		var latestBid, latestAsk Event
+		var lastLoggedBid, lastLoggedAsk Event
 
 		for {
 			_, message, err := conn.ReadMessage()
