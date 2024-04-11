@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 	"fmt"
+	"database/sql"
+    _ "github.com/lib/pq"
 )
 
 type Event struct {
@@ -46,6 +48,12 @@ func main() {
 
 	log.Println("Connected to Gemini WebSocket API for BTCUSD market data")
 
+	db, err := sql.Open("postgres", "user=hank password=123456 dbname=gemini sslmode=disable")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	done := make(chan struct{})
 
 	go func() {
@@ -81,6 +89,11 @@ func main() {
 			   (latestAsk != lastLoggedAsk) {
 				fmt.Printf("%s %s - %s %s\n",
 					latestBid.Price, latestBid.Remaining, latestAsk.Price, latestAsk.Remaining)
+
+				_, err := db.Exec("INSERT INTO marketdata (bestbid, quantitybid, bestask, quantityask) VALUES ($1, $2, $3, $4)", latestBid.Price, latestBid.Remaining, latestAsk.Price, latestAsk.Remaining)
+				if err != nil {
+					log.Fatal(err)
+				}
 	
 				lastLoggedBid = latestBid
 				lastLoggedAsk = latestAsk
